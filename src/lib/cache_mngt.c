@@ -20,20 +20,14 @@
 #include <netlink/utils.h>
 
 static struct nl_cache_ops *cache_ops;
+static NL_RW_LOCK(cache_ops_lock);
 
 /**
  * @name Cache Operations Sets
  * @{
  */
 
-/**
- * Lookup the set cache operations of a certain cache type
- * @arg name		name of the cache type
- *
- * @return The cache operations or NULL if no operations
- *         have been registered under the specified name.
- */
-struct nl_cache_ops *nl_cache_ops_lookup(const char *name)
+struct nl_cache_ops *__nl_cache_ops_lookup(const char *name)
 {
 	struct nl_cache_ops *ops;
 
@@ -45,28 +39,127 @@ struct nl_cache_ops *nl_cache_ops_lookup(const char *name)
 }
 
 /**
- * Associate a message type to a set of cache operations
- * @arg protocol		netlink protocol
- * @arg msgtype			netlink message type
- *
- * Associates the specified netlink message type with
- * a registered set of cache operations.
- *
- * @return The cache operations or NULL if no association
- *         could be made.
+ * Increment reference counter
+ * @arg ops		Cache operations
  */
-struct nl_cache_ops *nl_cache_ops_associate(int protocol, int msgtype)
+void nl_cache_ops_get(struct nl_cache_ops *ops)
+{
+	ops->co_refcnt++;
+}
+
+/**
+ * Decrement reference counter
+ * @arg ops		Cache operations
+ */
+void nl_cache_ops_put(struct nl_cache_ops *ops)
+{
+	ops->co_refcnt--;
+}
+
+/**
+ * Lookup cache operations by name
+ * @arg name		name of the cache type
+ *
+ * @attention This function is not safe, it does not increment the reference
+ *            counter. Please use nl_cache_ops_lookup_safe().
+ *
+ * @return The cache operations or NULL if not found.
+ */
+struct nl_cache_ops *nl_cache_ops_lookup(const char *name)
+{
+	struct nl_cache_ops *ops;
+
+	nl_read_lock(&cache_ops_lock);
+	ops = __nl_cache_ops_lookup(name);
+	nl_read_unlock(&cache_ops_lock);
+
+	return ops;
+}
+
+/**
+ * Lookup cache operations by name
+ * @arg name		name of the cache type
+ *
+ * @note The reference counter of the returned cache operation is incremented
+ *       and must be decremented after use with nl_cache_ops_put().
+ *
+ * @return The cache operations or NULL if not found.
+ */
+struct nl_cache_ops *nl_cache_ops_lookup_safe(const char *name)
+{
+	struct nl_cache_ops *ops;
+
+	nl_write_lock(&cache_ops_lock);
+	if ((ops = __nl_cache_ops_lookup(name)))
+		nl_cache_ops_get(ops);
+	nl_write_unlock(&cache_ops_lock);
+
+	return ops;
+}
+
+static struct nl_cache_ops *__cache_ops_associate(int protocol, int msgtype)
 {
 	int i;
 	struct nl_cache_ops *ops;
 
-	for (ops = cache_ops; ops; ops = ops->co_next)
+	for (ops = cache_ops; ops; ops = ops->co_next) {
+		if (ops->co_protocol != protocol)
+			continue;
+
 		for (i = 0; ops->co_msgtypes[i].mt_id >= 0; i++)
-			if (ops->co_msgtypes[i].mt_id == msgtype &&
-			    ops->co_protocol == protocol)
+			if (ops->co_msgtypes[i].mt_id == msgtype)
 				return ops;
+	}
 
 	return NULL;
+}
+
+/**
+ * Associate protocol and message type to cache operations
+ * @arg protocol		netlink protocol
+ * @arg msgtype			netlink message type
+ *
+ * @attention This function is not safe, it does not increment the reference
+ *            counter. Please use nl_cache_ops_associate_safe().
+ *
+ * @see nl_cache_ops_associate_safe()
+ *
+ * @return The cache operations or NULL if no match found.
+ */
+struct nl_cache_ops *nl_cache_ops_associate(int protocol, int msgtype)
+{
+	struct nl_cache_ops *ops;
+
+	nl_read_lock(&cache_ops_lock);
+	ops = __cache_ops_associate(protocol, msgtype);
+	nl_read_unlock(&cache_ops_lock);
+
+	return ops;
+}
+
+/**
+ * Associate protocol and message type to cache operations
+ * @arg protocol		netlink protocol
+ * @arg msgtype			netlink message type
+ *
+ * Searches the registered cache operations for a matching protocol
+ * and message type.
+ *
+ * @note The reference counter of the returned cache operation is incremented
+ *       and must be decremented after use with nl_cache_ops_put().
+ *
+ * @return The cache operations or NULL if no no match was found.
+ */
+struct nl_cache_ops *nl_cache_ops_associate_safe(int protocol, int msgtype)
+{
+	struct nl_cache_ops *ops;
+
+	nl_write_lock(&cache_ops_lock);
+	if ((ops = __cache_ops_associate(protocol, msgtype)))
+		nl_cache_ops_get(ops);
+	nl_write_unlock(&cache_ops_lock);
+
+	return ops;
 }
 
 /**
@@ -76,6 +169,9 @@ struct nl_cache_ops *nl_cache_ops_associate(int protocol, int msgtype)
  *
  * Searches for a matching message type association ing the specified
  * cache operations.
+ *
+ * @attention The guranteed lifetime of the returned message type is bound
+ *            to the lifetime of the underlying cache operations.
  *
  * @return A message type association or NULL.
  */
@@ -90,6 +186,7 @@ struct nl_msgtype *nl_msgtype_lookup(struct nl_cache_ops *ops, int msgtype)
 	return NULL;
 }
 
+/* Must hold cache_ops_lock */
 static struct nl_cache_ops *cache_ops_lookup_for_obj(struct nl_object_ops *obj_ops)
 {
 	struct nl_cache_ops *ops;
@@ -111,8 +208,10 @@ void nl_cache_ops_foreach(void (*cb)(struct nl_cache_ops *, void *), void *arg)
 {
 	struct nl_cache_ops *ops;
 
+	nl_read_lock(&cache_ops_lock);
 	for (ops = cache_ops; ops; ops = ops->co_next)
 		cb(ops, arg);
+	nl_read_unlock(&cache_ops_lock);
 }
 
 /**
@@ -132,11 +231,16 @@ int nl_cache_mngt_register(struct nl_cache_ops *ops)
 	if (!ops->co_obj_ops)
 		return nl_error(EINVAL, "No obj cache ops specified");
 
-	if (nl_cache_ops_lookup(ops->co_name))
+	nl_write_lock(&cache_ops_lock);
+	if (__nl_cache_ops_lookup(ops->co_name)) {
+		nl_write_unlock(&cache_ops_lock);
 		return nl_error(EEXIST, "Cache operations already exist");
-	    
+	}
+
+	ops->co_refcnt = 0;
 	ops->co_next = cache_ops;
 	cache_ops = ops;
+	nl_write_unlock(&cache_ops_lock);
 
 	NL_DBG(1, "Registered cache operations %s\n", ops->co_name);
 
@@ -158,16 +262,27 @@ int nl_cache_mngt_unregister(struct nl_cache_ops *ops)
 {
 	struct nl_cache_ops *t, **tp;
 
+	nl_write_lock(&cache_ops_lock);
+
+	if (ops->co_refcnt > 0) {
+		nl_write_unlock(&cache_ops_lock);
+		return nl_error(EBUSY, "Cache operations busy");
+	}
+
 	for (tp = &cache_ops; (t=*tp) != NULL; tp = &t->co_next)
 		if (t == ops)
 			break;
 
-	if (!t)
+	if (!t) {
+		nl_write_unlock(&cache_ops_lock);
 		return nl_error(ENOENT, "No such cache operations");
+	}
 
 	NL_DBG(1, "Unregistered cache operations %s\n", ops->co_name);
 
 	*tp = t->co_next;
+	nl_write_unlock(&cache_ops_lock);
+
 	return 0;
 }
 
@@ -190,11 +305,17 @@ void nl_cache_mngt_provide(struct nl_cache *cache)
 {
 	struct nl_cache_ops *ops;
 
+	nl_write_lock(&cache_ops_lock);
+
 	ops = cache_ops_lookup_for_obj(cache->c_ops->co_obj_ops);
 	if (!ops)
 		BUG();
-	else
+	else {
+		nl_cache_get(cache);
 		ops->co_major_cache = cache;
+	}
+
+	nl_write_unlock(&cache_ops_lock);
 }
 
 /**
@@ -209,11 +330,17 @@ void nl_cache_mngt_unprovide(struct nl_cache *cache)
 {
 	struct nl_cache_ops *ops;
 
+	nl_write_lock(&cache_ops_lock);
+
 	ops = cache_ops_lookup_for_obj(cache->c_ops->co_obj_ops);
 	if (!ops)
 		BUG();
-	else if (ops->co_major_cache == cache)
+	else if (ops->co_major_cache == cache) {
+		nl_cache_free(ops->co_major_cache);
 		ops->co_major_cache = NULL;
+	}
+
+	nl_write_unlock(&cache_ops_lock);
 }
 
 /**

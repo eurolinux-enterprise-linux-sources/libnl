@@ -43,6 +43,7 @@ extern struct nl_cache *	nl_cache_alloc_name(const char *);
 extern struct nl_cache *	nl_cache_subset(struct nl_cache *,
 						struct nl_object *);
 extern void			nl_cache_clear(struct nl_cache *);
+extern void			nl_cache_get(struct nl_cache *);
 extern void			nl_cache_free(struct nl_cache *);
 
 /* Cache modification */
@@ -91,7 +92,9 @@ extern void			nl_cache_foreach_filter(struct nl_cache *,
 
 /* Cache type management */
 extern struct nl_cache_ops *	nl_cache_ops_lookup(const char *);
+extern struct nl_cache_ops *	nl_cache_ops_lookup_safe(const char *);
 extern struct nl_cache_ops *	nl_cache_ops_associate(int, int);
+extern struct nl_cache_ops *	nl_cache_ops_associate_safe(int, int);
 extern struct nl_msgtype *	nl_msgtype_lookup(struct nl_cache_ops *, int);
 extern void			nl_cache_ops_foreach(void (*cb)(struct nl_cache_ops *, void *), void *);
 extern int			nl_cache_mngt_register(struct nl_cache_ops *);

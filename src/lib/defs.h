@@ -1,6 +1,9 @@
 /* lib/defs.h.  Generated from defs.h.in by configure.  */
 /* lib/defs.h.in.  Generated from configure.in by autoheader.  */
 
+/* Define to 1 to disable pthreads */
+/* #undef DISABLE_PTHREADS */
+
 /* Define to the address where bug reports for this package should be sent. */
 #define PACKAGE_BUGREPORT "tgraf@suug.ch"
 
@@ -8,13 +11,16 @@
 #define PACKAGE_NAME "libnl"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "libnl 1.1"
+#define PACKAGE_STRING "libnl 1.1.4"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "libnl"
 
+/* Define to the home page for this package. */
+#define PACKAGE_URL ""
+
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.1"
+#define PACKAGE_VERSION "1.1.4"
 
 /* verbose errors */
 /* #undef VERBOSE_ERRORS */

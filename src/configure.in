@@ -9,7 +9,7 @@
 # Copyright (c) 2003-2008 Thomas Graf <tgraf@suug.ch>
 #
 
-AC_INIT(libnl, 1.1, tgraf@suug.ch)
+AC_INIT(libnl, 1.1.4, tgraf@suug.ch)
 AC_CONFIG_HEADER(lib/defs.h)
 
 save_CFLAGS="${CFLAGS}"
@@ -51,13 +51,28 @@ AC_ARG_ENABLE(verbose-errors,
 	fi
 ])
 
+AC_ARG_ENABLE([pthreads],
+	AS_HELP_STRING([--disable-pthreads], [Disable pthreads support]),
+	[enable_pthreads="$enableval"], [enable_pthreads="yes"])
+
+if test "x$enable_pthreads" = "xno"; then
+    AC_DEFINE([DISABLE_PTHREADS], [1], [Define to 1 to disable pthreads])
+else
+# libpthread
+	AC_CHECK_LIB([pthread], [pthread_mutex_lock],
+	[
+	  LIBPTHREAD="-lpthread"
+	  PTHREAD="Yes"
+	], AC_MSG_ERROR([libpthread is required]))
+fi
+
 #####################################################################
 ##
 ## compile decisions
 ##
 #####################################################################
 COMPILE_LIBNL="Yes "
-LIBNL_LIB="$LIBM"
+LIBNL_LIB="$LIBM $LIBPTHREAD"
 
 AC_SUBST(LIBNL_LIB)
 

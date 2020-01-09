@@ -284,7 +284,7 @@ int nlmsg_valid_hdr(const struct nlmsghdr *nlh, int hdrlen)
  */
 int nlmsg_ok(const struct nlmsghdr *nlh, int remaining)
 {
-	return (remaining >= sizeof(struct nlmsghdr) &&
+	return (remaining >= (int)sizeof(struct nlmsghdr) &&
 		nlh->nlmsg_len >= sizeof(struct nlmsghdr) &&
 		nlh->nlmsg_len <= remaining);
 }
@@ -959,10 +959,11 @@ void nl_msg_dump(struct nl_msg *msg, FILE *ofd)
 	    hdr->nlmsg_len >= nlmsg_msg_size(sizeof(struct nlmsgerr))) {
 		struct nl_msg *errmsg;
 		struct nlmsgerr *err = nlmsg_data(hdr);
+		char buf[256];
 
 		fprintf(ofd, "  [ERRORMSG] %Zu octets\n", sizeof(*err));
 		fprintf(ofd, "    .error = %d \"%s\"\n", err->error,
-			strerror(-err->error));
+			strerror_r(-err->error, buf, sizeof(buf)));
 		fprintf(ofd, "  [ORIGINAL MESSAGE] %Zu octets\n", sizeof(*hdr));
 
 		errmsg = nlmsg_inherit(&err->msg);

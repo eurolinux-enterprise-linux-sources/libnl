@@ -2,23 +2,14 @@ Summary: Convenience library for kernel netlink sockets
 Group: Development/Libraries
 License: LGPLv2
 Name: libnl
-Version: 1.1
-Release: 14%{?dist}
+Version: 1.1.4
+Release: 1%{?dist}
 URL: http://www.infradead.org/~tgr/libnl/
 Source: http://www.infradead.org/~tgr/libnl/files/libnl-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 BuildRequires: doxygen
-Patch1: libnl-1.0-pre5-static.patch
-Patch2: libnl-1.0-pre5-debuginfo.patch
-Patch3: libnl-1.0-pre8-use-vasprintf-retval.patch
-Patch4: libnl-1.0-pre8-more-build-output.patch
-Patch5: libnl-1.1-include-limits-h.patch
-Patch6: libnl-1.1-doc-inlinesrc.patch
-Patch7: libnl-1.1-no-extern-inline.patch
-Patch8: libnl-1.1-align.patch
-Patch9: rh617291-error-thread-local.patch
-Patch10: rh620345-memleak-fixes.patch
-Patch11: rh677724-thread-safe-port-alloc.patch
+Patch1: libnl-1.0-pre8-more-build-output.patch
+Patch2: libnl-1.1-doc-inlinesrc.patch
 
 %description
 This package contains a convenience library to simplify
@@ -37,17 +28,8 @@ This package contains various headers for using libnl
 
 %prep
 %setup -q -n %{name}-%{version}
-%patch1 -p1 -b .build-static
-%patch2 -p1 -b .debuginfo
-%patch3 -p1 -b .use-vasprintf-retval
-%patch4 -p1 -b .more-build-output
-%patch5 -p1 -b .limits
-%patch6 -p1 -b .doc-inlinesrc
-%patch7 -p1 -b .no-extern-inline
-%patch8 -p1 -b .align
-%patch9 -p1 -b .error-thread-local
-%patch10 -p1 -b .memleak-fixes
-%patch11 -p1 -b .thread-safe-port-alloc
+%patch1 -p1 -b .more-build-output
+%patch2 -p1 -b .doc-inlinesrc
 
 # a quick hack to make doxygen stripping builddir from html outputs.
 sed -i.org -e "s,^STRIP_FROM_PATH.*,STRIP_FROM_PATH = `pwd`," doc/Doxyfile.in
@@ -88,6 +70,9 @@ done
 %{_libdir}/pkgconfig/%{name}-1.pc
 
 %changelog
+* Mon Jun 10 2013 Thomas Graf <tgraf@redhat.com> - 1.1.4-1
+- increase receive buffer size (rh #962892)
+
 * Mon Mar 28 2011 Laine Stump <laine@redhat.com> - 1.1-14
 - Fix problems with thread-safety and basic logic of port allocation
   (rh #677724) (rh #677725)

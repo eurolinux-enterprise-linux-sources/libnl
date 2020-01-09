@@ -6,7 +6,7 @@
  *	License as published by the Free Software Foundation version 2.1
  *	of the License.
  *
- * Copyright (c) 2003-2006 Thomas Graf <tgraf@suug.ch>
+ * Copyright (c) 2003-2012 Thomas Graf <tgraf@suug.ch>
  */
 
 /**
@@ -67,15 +67,12 @@ int nl_cache_nitems(struct nl_cache *cache)
  */
 int nl_cache_nitems_filter(struct nl_cache *cache, struct nl_object *filter)
 {
-	struct nl_object_ops *ops;
 	struct nl_object *obj;
 	int nitems = 0;
 
 	if (cache->c_ops == NULL)
 		BUG();
 
-	ops = cache->c_ops->co_obj_ops;
-	
 	nl_list_for_each_entry(obj, &cache->c_items, ce_list) {
 		if (filter && !nl_object_match_filter(obj, filter))
 			continue;
@@ -182,6 +179,7 @@ struct nl_cache *nl_cache_alloc(struct nl_cache_ops *ops)
 
 	nl_init_list_head(&cache->c_items);
 	cache->c_ops = ops;
+	cache->c_refcnt = 1;
 
 	NL_DBG(2, "Allocated cache %p <%s>.\n", cache, nl_cache_name(cache));
 
@@ -216,7 +214,6 @@ struct nl_cache *nl_cache_subset(struct nl_cache *orig,
 				 struct nl_object *filter)
 {
 	struct nl_cache *cache;
-	struct nl_object_ops *ops;
 	struct nl_object *obj;
 
 	if (!filter)
@@ -225,8 +222,6 @@ struct nl_cache *nl_cache_subset(struct nl_cache *orig,
 	cache = nl_cache_alloc(orig->c_ops);
 	if (!cache)
 		return NULL;
-
-	ops = orig->c_ops->co_obj_ops;
 
 	nl_list_for_each_entry(obj, &orig->c_items, ce_list) {
 		if (!nl_object_match_filter(obj, filter))
@@ -254,6 +249,23 @@ void nl_cache_clear(struct nl_cache *cache)
 		nl_cache_remove(obj);
 }
 
+static void __nl_cache_free(struct nl_cache *cache)
+{
+	nl_cache_clear(cache);
+
+	NL_DBG(1, "Freeing cache %p <%s>...\n", cache, nl_cache_name(cache));
+	free(cache);
+}
+
+/**
+ * Increase reference counter of cache
+ * @arg cache		Cache
+ */
+void nl_cache_get(struct nl_cache *cache)
+{
+	cache->c_refcnt++;
+}
+
 /**
  * Free a cache.
  * @arg cache		Cache to free.
@@ -264,9 +276,15 @@ void nl_cache_clear(struct nl_cache *cache)
  */
 void nl_cache_free(struct nl_cache *cache)
 {
-	nl_cache_clear(cache);
-	NL_DBG(1, "Freeing cache %p <%s>...\n", cache, nl_cache_name(cache));
-	free(cache);
+	if (!cache)
+		return;
+
+	cache->c_refcnt--;
+	NL_DBG(4, "Returned cache reference %p, %d remaining\n",
+	       cache, cache->c_refcnt);
+
+	if (cache->c_refcnt <= 0)
+		__nl_cache_free(cache);
 }
 
 /** @} */
@@ -791,12 +809,9 @@ void nl_cache_foreach_filter(struct nl_cache *cache, struct nl_object *filter,
 			     void (*cb)(struct nl_object *, void *), void *arg)
 {
 	struct nl_object *obj, *tmp;
-	struct nl_object_ops *ops;
 
 	if (cache->c_ops == NULL)
 		BUG();
-
-	ops = cache->c_ops->co_obj_ops;
 
 	nl_list_for_each_entry_safe(obj, tmp, &cache->c_items, ce_list) {
 		if (filter && !nl_object_match_filter(obj, filter))
