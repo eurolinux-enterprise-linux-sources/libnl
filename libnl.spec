@@ -3,7 +3,7 @@ Group: Development/Libraries
 License: LGPLv2
 Name: libnl
 Version: 1.1.4
-Release: 1%{?dist}
+Release: 2%{?dist}
 URL: http://www.infradead.org/~tgr/libnl/
 Source: http://www.infradead.org/~tgr/libnl/files/libnl-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
@@ -70,8 +70,17 @@ done
 %{_libdir}/pkgconfig/%{name}-1.pc
 
 %changelog
-* Mon Jun 10 2013 Thomas Graf <tgraf@redhat.com> - 1.1.4-1
-- increase receive buffer size (rh #962892)
+* Fri Sep 06 2013 Thomas Graf <tgraf@redhat.com> - 1.1.4-2
+- Bump revision to produce a newer release than what it is in 6.4.z
+
+* Tue May 07 2013 Thomas Graf <tgraf@redhat.com> - 1.1.4-1
+- Update to libnl 1.1.4 (rh #953339)
+
+* Tue Mar 19 2013 Thomas Graf <tgraf@redhat.com> - 1.1.3-1
+- Update to libnl 1.1.3 (rh #689559) (rh #682240)
+
+* Thu Feb 28 2013 Thomas Graf <tgraf@redhat.com> - 1.1.2-1
+- Update to libnl 1.1.2 (rh #689559) (rh #682240)
 
 * Mon Mar 28 2011 Laine Stump <laine@redhat.com> - 1.1-14
 - Fix problems with thread-safety and basic logic of port allocation
