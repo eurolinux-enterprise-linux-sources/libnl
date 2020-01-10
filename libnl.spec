@@ -3,7 +3,7 @@ Group: Development/Libraries
 License: LGPLv2
 Name: libnl
 Version: 1.1.4
-Release: 1%{?dist}
+Release: 3%{?dist}
 URL: http://www.infradead.org/~tgr/libnl/
 Source: http://www.infradead.org/~tgr/libnl/files/libnl-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
@@ -71,6 +71,12 @@ done
 %{_libdir}/pkgconfig/%{name}-1.pc
 
 %changelog
+* Fri Jan 24 2014 Daniel Mach <dmach@redhat.com> - 1.1.4-3
+- Mass rebuild 2014-01-24
+
+* Fri Dec 27 2013 Daniel Mach <dmach@redhat.com> - 1.1.4-2
+- Mass rebuild 2013-12-27
+
 * Tue May 07 2013 Thomas Graf <tgraf@redhat.com> - 1.1.4-1
 - Update to latest stable release 1.1.4
 
